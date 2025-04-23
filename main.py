@@ -7,3 +7,4 @@ app = FastAPI()
 # Registra o router na aplicação
 app.include_router(user_router)
 app.include_router(exercise_router)
+

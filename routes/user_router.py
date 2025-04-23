@@ -59,31 +59,20 @@ def download_zip():
 
 @user_router.post("/users/create", tags=["users"])
 def create(userDto: user_request_dto):
+    new_id = find_new_id_user()
     newUser = user(
-        find_new_id_user(), 
-        userDto.name, 
-        userDto.objective, 
-        userDto.height, 
-        userDto.weight, 
-        date.today()
+        id = new_id, 
+        name = userDto.name, 
+        objective = userDto.objective, 
+        height = userDto.height, 
+        weight = userDto.weight, 
+        registration_date = date.today()
     ) 
     with open('data/users.csv', mode='a', newline='', encoding='utf-8') as file:
         escritor = csv.writer(file)
         escritor.writerow([newUser.id, newUser.name, newUser.objective, newUser.height, newUser.weight, newUser.registration_date])
-
-@user_router.delete("/users/delete/{user_id}", tags=["users"])
-def delete(user_id: int):
-    with open("data/users.csv", newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        users = list(reader)  
-
-    updated_users = [row for row in users if (int(row[0]) != user_id)]
-
-    with open("data/users.csv", mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerows(updated_users)
-
-    return {"message": "User deleted successfully"}
+    
+    return {"message": "Exercise created successfully", "id": new_id}
 
 @user_router.put("/users/update/{user_id}", tags=["users"])
 def update(user_id: int, userDto: user_request_dto):
@@ -101,3 +90,17 @@ def update(user_id: int, userDto: user_request_dto):
         writer.writerows(updated_users)
 
     return {"message": "User updated successfully"}
+
+@user_router.delete("/users/delete/{user_id}", tags=["users"])
+def delete(user_id: int):
+    with open("data/users.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        users = list(reader)  
+
+    updated_users = [row for row in users if (int(row[0]) != user_id)]
+
+    with open("data/users.csv", mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(updated_users)
+
+    return {"message": "User deleted successfully"}

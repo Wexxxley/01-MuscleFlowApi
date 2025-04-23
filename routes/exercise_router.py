@@ -4,14 +4,15 @@ import os
 import zipfile
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import FileResponse
-from dtos.user_request_dto import user_request_dto
 from entities.exercise import exercise
-from entities.user import user
+from dtos.exercise_request_dto import exercise_request_dto
 from utils.auxiliares import find_new_id_user
+from utils.auxiliares import find_new_id_exercise
+from utils.level_exercise import level_exercise
 
 exercise_router = APIRouter()
 
-@exercise_router.get("/exercise/get_exercise_router/{exercise_id}", tags=["exercise"])
+@exercise_router.get("/exercise/get_by_id/{exercise_id}", tags=["exercise"])
 def get_by_id(user_id: int):
     with open("data/exercise.csv", newline='', encoding='utf-8') as file:
         reader = csv.reader(file)
@@ -22,10 +23,103 @@ def get_by_id(user_id: int):
                     name=row[1],
                     target_muscle_group=row[2],
                     equipment=row[3],
-                    level=row[4],
+                    level=level_exercise(row[4]),
                     url=row[5],
                     sets=int(row[6]),
                     reps=int(row[7]),
-                    weight=int(row[8])
+                    weight=float(row[8])
                 )
     return {"message": "Exercise not found"}
+
+@exercise_router.get("/exercise/get_all", tags=["exercise"])
+def get_all():
+    with open("data/exercise.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        exercises = []
+        for row in reader:
+            exercise_instance = exercise(
+                id=int(row[0]),
+                name=row[1],
+                target_muscle_group=row[2],
+                equipment=row[3],
+                level=row[4],
+                url=row[5],
+                sets=int(row[6]),
+                reps=int(row[7]),
+                weight=float(row[8])
+            )
+            exercises.append(exercise_instance)
+    return exercises
+
+
+@exercise_router.get("/exercise/get_quantity", tags=["exercise"])
+def get_quantity():
+    with open("data/exercise.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        exercise = list(reader)  
+    return {"quantity": len(exercise)}
+
+@exercise_router.get("/exercise/download_zip", tags=["exercise"])
+def download_zip():
+    with zipfile.ZipFile("data_zip/exercise.zip", 'w', zipfile.ZIP_DEFLATED) as zipf:
+        zipf.write("data/exercise.csv", os.path.basename("data/exercise.csv"))  
+    
+    return FileResponse("data_zip/exercise.zip", media_type='application/zip', filename='exercise.zip')
+
+@exercise_router.post("/exercise/create", tags=["exercise"])
+def create(exercise_request: exercise_request_dto):
+    new_id = find_new_id_exercise()
+    
+    new_exercise = exercise(
+        id=new_id, 
+        name=exercise_request.name, 
+        target_muscle_group=exercise_request.target_muscle_group, 
+        equipment=exercise_request.equipment, 
+        level=level_exercise(exercise_request.level), 
+        url=exercise_request.url, 
+        sets=exercise_request.sets, 
+        reps=exercise_request.reps, 
+        weight=exercise_request.weight
+    )
+        
+    with open('data/exercise.csv', mode='a', newline='', encoding='utf-8') as file:
+        escritor = csv.writer(file)
+        escritor.writerow([new_exercise.id, new_exercise.name, new_exercise.target_muscle_group, 
+                           new_exercise.equipment, new_exercise.level, new_exercise.url, new_exercise.sets, 
+                           new_exercise.reps, new_exercise.weight])
+    
+    return {"message": "Exercise created successfully", "id": new_id}
+
+
+#atualizar put
+@exercise_router.put("/exercise/update/{exercise_id}", tags=["exercise"])
+def update(exercise_id: int, exerciseDto: exercise_request_dto):
+    with open("data/exercise.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        updated_exercise = list(reader)  
+
+    for i, row in enumerate(updated_exercise):
+        if int(row[0]) == exercise_id:
+            updated_exercise[i] = [exercise_id, exerciseDto.name, exerciseDto.target_muscle_group, exerciseDto.equipment,
+                                  exerciseDto.level, exerciseDto.url, exerciseDto.sets, exerciseDto.reps, exerciseDto.weight]
+            break
+
+    with open("data/exercise.csv", mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(updated_exercise)
+
+    return {"message": "exercise updated successfully"}
+
+@exercise_router.delete("/exercise/delete/{exercise_id}", tags=["exercise"])
+def delete_exercise(exercise_id: int):
+    with open("data/exercise.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        exercises = list(reader)
+
+    updated_exercises = [row for row in exercises if (int(row[0]) != exercise_id)]
+
+    with open("data/exercise.csv", mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(updated_exercises)
+
+    return {"message": "Exercise deleted successfully"}
