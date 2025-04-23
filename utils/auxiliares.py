@@ -11,3 +11,15 @@ def contar_linhas_csv(caminho_arquivo: str):
         leitor = csv.reader(arquivo)
         linhas = list(leitor)
         return len(linhas)
+    
+def indent(elem, level=0):
+    i = "\n" + level * "  "
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = i + "  "
+        for child in elem:
+            indent(child, level + 1)
+        if not child.tail or not child.tail.strip():
+            child.tail = i
+    if level and (not elem.tail or not elem.tail.strip()):
+        elem.tail = i

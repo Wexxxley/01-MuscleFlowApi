@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<users>
+  <user>
+    <id>1</id>
+    <name>pedro</name>
+    <objective>alala</objective>
+    <height>3.0</height>
+    <weight>0.0</weight>
+    <registration_date>2025-04-22</registration_date>
+  </user>
+  <user>
+    <id>2</id>
+    <name>gilardo</name>
+    <objective>string</objective>
+    <height>3.0</height>
+    <weight>0.0</weight>
+    <registration_date>2025-04-22</registration_date>
+  </user>
+</users>

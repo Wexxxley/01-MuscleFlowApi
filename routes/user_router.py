@@ -1,4 +1,5 @@
 import csv
+import xml.etree.ElementTree as ET
 from datetime import date
 import os
 import zipfile
@@ -6,7 +7,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.responses import FileResponse
 from dtos.user_request_dto import user_request_dto
 from entities.user import user
-from utils.auxiliares import find_new_id_user
+from utils.auxiliares import find_new_id_user, indent
 
 user_router = APIRouter()
 
@@ -56,6 +57,26 @@ def download_zip():
         zipf.write("data/users.csv", os.path.basename("data/users.csv"))  
     
     return FileResponse("data_zip/users.zip", media_type='application/zip', filename='users.zip')
+
+@user_router.get("/user/download_xml", tags=["users"])
+def download_xml():
+    Headers = [
+        "id", "name", "objective", "height", "weight", "registration_date"
+    ]
+    
+    with open("data/users.csv", newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile, fieldnames=Headers)
+        root = ET.Element("users")
+        for row in reader:
+            item = ET.SubElement(root, "user")
+            for key, value in row.items():
+                field = ET.SubElement(item, key)
+                field.text = value
+        indent(root)  # Aplica indentação personalizada
+        tree = ET.ElementTree(root)
+        tree.write("data_xml/users.xml", encoding='utf-8', xml_declaration=True)
+
+    return FileResponse("data_xml/users.xml", media_type='application/xml', filename='users.xml')
 
 @user_router.post("/users/create", tags=["users"])
 def create(userDto: user_request_dto):

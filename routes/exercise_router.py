@@ -6,9 +6,10 @@ from fastapi import APIRouter, FastAPI
 from fastapi.responses import FileResponse
 from entities.exercise import exercise
 from dtos.exercise_request_dto import exercise_request_dto
-from utils.auxiliares import find_new_id_user
+from utils.auxiliares import find_new_id_user, indent
 from utils.auxiliares import find_new_id_exercise
 from utils.level_exercise import level_exercise
+import xml.etree.ElementTree as ET
 
 exercise_router = APIRouter()
 
@@ -59,12 +60,26 @@ def get_quantity():
         exercise = list(reader)  
     return {"quantity": len(exercise)}
 
-@exercise_router.get("/exercise/download_zip", tags=["exercise"])
-def download_zip():
-    with zipfile.ZipFile("data_zip/exercise.zip", 'w', zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write("data/exercise.csv", os.path.basename("data/exercise.csv"))  
+@exercise_router.get("/exercise/download_xml", tags=["exercise"])
+def download_xml():
+    Headers = [
+        "id", "name", "target_muscle_group", "equipment",
+        "level", "url", "sets", "reps", "weight"
+    ]
     
-    return FileResponse("data_zip/exercise.zip", media_type='application/zip', filename='exercise.zip')
+    with open("data/exercise.csv", newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile, fieldnames=Headers)
+        root = ET.Element("exercises")
+        for row in reader:
+            item = ET.SubElement(root, "exercise")
+            for key, value in row.items():
+                field = ET.SubElement(item, key)
+                field.text = value
+        indent(root)  # Aplica indentação personalizada
+        tree = ET.ElementTree(root)
+        tree.write("data_xml/exercise.xml", encoding='utf-8', xml_declaration=True)
+
+    return FileResponse("data_xml/exercise.xml", media_type='application/xml', filename='exercise.xml')
 
 @exercise_router.post("/exercise/create", tags=["exercise"])
 def create(exercise_request: exercise_request_dto):
