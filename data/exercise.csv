@@ -1,5 +1,24 @@
 1,Push-up,Chest,None,level_exercise.Beginner,https://www.youtube.com/watch?v=_l3ySVKYVJ8,3,12,0
-2,Pull-up,Back,Pull-up bar,level_exercise.Intermediate,https://www.youtube.com/watch?v=eGo4IYlbE5g,4,10,0
-3,Squat,Legs,None,level_exercise.Beginner,https://www.youtube.com/watch?v=aclHkVaku9U,3,15,0
-4,Deadlift,Full body,Barbell,level_exercise.Advanced,https://www.youtube.com/watch?v=op9kVnSso6Q,5,5,80
-5,Shoulder Press,Shoulders,Dumbbells,level_exercise.Intermediate,https://www.youtube.com/watch?v=B-aVuyhvLHU,4,10,15
+2,Chest Press,Chest,Machine,level_exercise.Intermediate,https://youtu.be/vnd-GBtTMLI?si=-DCjE8aQE7ItTqRH,4,10,0
+3,Incline Dumbbell Press,Chest,Dumbbells,level_exercise.Advanced,https://www.youtube.com/shorts/L6kqbVxrEz8,4,8,20
+4,Chest Fly,Chest,Machine,level_exercise.Beginner,https://www.youtube.com/shorts/hzlfYip_5sI,3,15,0
+5,Pull-up,Back,Pull-up bar,level_exercise.Intermediate,https://www.youtube.com/watch?v=eGo4IYlbE5g,4,10,0
+6,Barbell Row,Back,Barbell,level_exercise.Intermediate,https://www.youtube.com/watch?v=bm0_q9bR_HA,4,10,50
+7,Lat Pulldown,Back,Machine,level_exercise.Beginner,https://www.youtube.com/watch?v=CAwf7n6Luuc,3,12,0
+8,Deadlift,Back,Barbell,level_exercise.Advanced,https://www.youtube.com/watch?v=op9kVnSso6Q,5,5,80
+9,Squat,Legs,None,level_exercise.Beginner,https://www.youtube.com/shorts/PPmvh7gBTi0,3,15,0
+10,Lunges,Legs,Dumbbells,level_exercise.Intermediate,https://www.youtube.com/watch?v=QOVaHwm-Q6U,4,10,20
+11,Leg Press,Legs,Machine,level_exercise.Advanced,https://www.youtube.com/shorts/nDh_BlnLCGc,5,12,100
+12,Leg Extension,Legs,Machine,level_exercise.Beginner,https://www.youtube.com/watch?v=m0FOpMEgero,3,15,0
+13,Shoulder Press,Shoulders,Dumbbells,level_exercise.Intermediate,https://www.youtube.com/shorts/k6tzKisR3NY,4,10,15
+14,Lateral Raise,Shoulders,Dumbbells,level_exercise.Beginner,https://www.youtube.com/shorts/mRfJZsn5DYY,3,12,5
+15,Front Raise,Shoulders,Dumbbells,level_exercise.Intermediate,https://www.youtube.com/watch?v=hRJ6tR5-if0,4,10,10
+16,Arnold Press,Shoulders,Dumbbells,level_exercise.Advanced,https://www.youtube.com/shorts/VPktEkSPY70,5,8,20
+17,Barbell Curl,Biceps,Barbell,level_exercise.Beginner,https://www.youtube.com/watch?v=kwG2ipFRgfo,4,12,0
+18,Dumbbell Curl,Biceps,Dumbbells,level_exercise.Intermediate,https://www.youtube.com/watch?v=ykJmrZ5v0Oo,4,10,10
+19,Hammer Curl,Biceps,Dumbbells,level_exercise.Intermediate,https://www.youtube.com/watch?v=zC3nLlEvin4,4,10,8
+20,Concentration Curl,Biceps,Dumbbells,level_exercise.Advanced,https://www.youtube.com/shorts/cHxRJdSVIkA,5,8,12
+21,Triceps Pushdown,Triceps,Machine,level_exercise.Beginner,https://www.youtube.com/watch?v=6Fzep104f0s,4,12,0
+22,Close-grip Bench Press,Triceps,Barbell,level_exercise.Intermediate,https://www.youtube.com/shorts/43rg7fBNP2w,4,8,50
+23,Dips,Triceps,Parallel Bars,level_exercise.Advanced,https://www.youtube.com/watch?v=2z8JmcrW-As,5,6,0
+24,Skull Crushers,Triceps,Barbell,level_exercise.Intermediate,https://www.youtube.com/watch?v=d_KZxkY_0cM,4,10,30

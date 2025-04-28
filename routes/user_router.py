@@ -58,7 +58,7 @@ def download_zip():
     
     return FileResponse("data_zip/users.zip", media_type='application/zip', filename='users.zip')
 
-@user_router.get("/user/download_xml", tags=["users"])
+@user_router.get("/users/download_xml", tags=["users"])
 def download_xml():
     Headers = [
         "id", "name", "objective", "height", "weight", "registration_date"
@@ -77,7 +77,7 @@ def download_xml():
         tree.write("data_xml/users.xml", encoding='utf-8', xml_declaration=True)
 
     return FileResponse("data_xml/users.xml", media_type='application/xml', filename='users.xml')
-
+ 
 @user_router.post("/users/create", tags=["users"])
 def create(userDto: user_request_dto):
     new_id = find_new_id_user()
@@ -125,3 +125,56 @@ def delete(user_id: int):
         writer.writerows(updated_users)
 
     return {"message": "User deleted successfully"}
+
+@user_router.get("/users/filter", tags=["users"])
+def filter_users(
+    
+    name: str = None,  
+    objective: str = None,  
+    height: float = None,
+    weight: float = None,   
+    registration_date: date = None,  
+    
+):
+    def matches(row):
+        """
+        Determines if a given row matches the specified filter criteria.
+
+        Args:
+            row (list): A list representing a row of data. The expected structure is:
+                - row[1]: Name (str)
+                - row[2]: Objective (str)
+                - row[3]: Height (float)
+                - row[4]: Weight (float)
+                - row[5]: Registration date (str)
+
+        Returns:
+            bool: True if the row matches all specified criteria, False otherwise.
+
+        Filter Criteria:
+            - `name` (str): Matches if the name in the row (case-insensitive) equals the provided name.
+            - `objective` (str): Matches if the objective in the row (case-insensitive) equals the provided objective.
+            - `height` (float): Matches if the height in the row equals the provided height.
+            - `weight` (float): Matches if the weight in the row equals the provided weight.
+            - `registration_date` (date): Matches if the registration date in the row equals the provided registration date.
+        """
+        return (
+            (not name or row[1].lower() == name.lower()) and
+            (not objective or row[2].lower() == objective.lower()) and
+            (not height or float(row[3]) == height) and
+            (not weight or float(row[4]) == weight) and
+            (not registration_date or date.fromisoformat(row[5]) == registration_date)
+        )
+    with open("data/users.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        return [
+            user(
+                id=int(row[0]), name=row[1],
+                objective=row[3], height=row[4], weight=row[5],
+                registration_date=int(row[6])
+            )
+            for row in reader if matches(row)
+        ]
+
+
+

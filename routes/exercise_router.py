@@ -138,3 +138,33 @@ def delete_exercise(exercise_id: int):
         writer.writerows(updated_exercises)
 
     return {"message": "Exercise deleted successfully"}
+
+
+
+@exercise_router.get("/exercise/filter", tags=["exercise"])
+def filter_exercises(
+    target_muscle_group: str=None,
+    equipment: str = None,
+    level: str =None,
+    weight_min: float=None,   
+    weight_max: float=None,
+):
+    def matches(row):
+        return (
+            (not target_muscle_group or row[2].lower() == target_muscle_group.lower()) and
+            (not equipment or row[3].lower() == equipment.lower()) and
+            (not level or row[4].lower() == level.lower()) and
+            (not weight_min or float(row[8]) >= weight_min) and
+            (not weight_max or float(row[8]) <= weight_max)
+        )
+
+    with open("data/exercise.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        return [
+            exercise(
+                id=int(row[0]), name=row[1], target_muscle_group=row[2],
+                equipment=row[3], level=row[4], url=row[5],
+                sets=int(row[6]), reps=int(row[7]), weight=float(row[8])
+            )
+            for row in reader if matches(row)
+        ]
