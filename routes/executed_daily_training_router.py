@@ -10,7 +10,7 @@ from dtos.executed_exercise_dto import executed_exercise_dto
 from dtos.executed_daily_training_dto import executed_daily_training_dto
 from dtos.user_request_dto import user_request_dto
 from entities.executed_daily_training import executed_daily_training
-from utils.auxiliares import find_new_id_executed_daily_training, find_new_id_user, indent
+from utils.auxiliares import find_new_id_executed_daily_training, find_new_id_user, get_all_valid_exercise_ids, indent
 
 daily_training_router = APIRouter()
 
@@ -56,6 +56,35 @@ def get_all():
                 )
             trainings.append(training_instance)
     return trainings
+
+
+@daily_training_router.get("/edaily_trainingxercise/filter", tags=["executed daily training"])
+def filter_daily_training(user_id: int = None, training_date: str = None):
+    def matches(row) -> bool:
+        return (
+            (not user_id or int(row[1]) == int(user_id)) and
+            (not training_date or row[2] == training_date) 
+        )
+     
+    with open("data/executed_daily_training.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        next(reader)
+        daily_training = list(reader)
+
+        return [
+            executed_daily_training(
+                int(row[0]),
+                int(row[1]),
+                date.fromisoformat(row[2]),
+                int(row[3]),
+                [executed_exercise_dto(
+                    id_exercise=int(row[i]),
+                    sets_done=int(row[i+1]),
+                    reps_done=int(row[i+2]),
+                    weight_used=float(row[i+3])
+                ) for i in range(5, len(row), 5)]
+            ) for row in daily_training if matches(row)
+        ]
 
 @daily_training_router.get("/daily_training/get_quantity", tags=["executed daily training"])
 def get_quantity():
@@ -104,6 +133,17 @@ def download_xml():
  
 @daily_training_router.post("/daily_training/create", tags=["executed daily training"])
 def create(executed_training_dto: executed_daily_training_dto):
+    valid_exercise_ids = get_all_valid_exercise_ids() 
+    
+    invalid_ids = []
+    
+    for exercise in executed_training_dto.exercises:
+        if exercise.id_exercise not in valid_exercise_ids:
+            invalid_ids.append(exercise.id_exercise)
+    
+    if invalid_ids:
+        return {"message": f"Invalid exercise IDs: {', '.join(map(str, invalid_ids))}"}
+
     new_id = find_new_id_executed_daily_training()
 
     newExecutedTraining = executed_daily_training(
@@ -118,9 +158,9 @@ def create(executed_training_dto: executed_daily_training_dto):
         escritor = csv.writer(file)
         row = [
             newExecutedTraining.id,
+            newExecutedTraining.user_id,
             newExecutedTraining.training_date.strftime('%Y-%m-%d'),
             newExecutedTraining.total_duration,
-            executed_training_dto.user_id
         ]
         for exercise in newExecutedTraining.exercises:
             row.extend([
@@ -135,34 +175,47 @@ def create(executed_training_dto: executed_daily_training_dto):
 
     return {"message": "Executed daily training created successfully", "id": new_id}
 
+@daily_training_router.put("/daily_training/update/{training_id}", tags=["executed daily training"])
+def update(training_id: int, executed_training_dto: executed_daily_training_dto):
+    with open("data/executed_daily_training.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        updated_trainings = list(reader)  
 
-# @daily_training_router.put("/daily_training/update/{user_id}", tags=["executed daily training"])
-# def update(user_id: int, userDto: user_request_dto):
-#     with open("data/users.csv", newline='', encoding='utf-8') as file:
-#         reader = csv.reader(file)
-#         updated_users = list(reader)  
+    header = updated_trainings[0]
 
-#     for i, row in enumerate(updated_users):
-#         if int(row[0]) == user_id:
-#             updated_users[i] = [user_id, userDto.name, userDto.objective, userDto.height, userDto.weight, updated_users[i][5]]
-#             break
+    for i, row in enumerate(updated_trainings[1:]):
+        if int(row[0]) == training_id:
+            updated_trainings[i] = [training_id, executed_training_dto.user_id, executed_training_dto.training_date.strftime('%Y-%m-%d'), executed_training_dto.total_duration]
+            for exercise in executed_training_dto.exercises:
+                updated_trainings[i].extend([
+                    "EXERCISE",
+                    exercise.id_exercise,
+                    exercise.sets_done,
+                    exercise.reps_done,
+                    exercise.weight_used
+                ])
+            break
 
-#     with open("data/users.csv", mode='w', newline='', encoding='utf-8') as file:
-#         writer = csv.writer(file)
-#         writer.writerows(updated_users)
+    updated_trainings.insert(0, header)
 
-#     return {"message": "User updated successfully"}
+    with open("data/executed_daily_training.csv", mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(updated_trainings)
 
-# @daily_training_router.delete("/daily_training/delete/{user_id}", tags=["executed daily training"])
-# def delete(user_id: int):
-#     with open("data/users.csv", newline='', encoding='utf-8') as file:
-#         reader = csv.reader(file)
-#         users = list(reader)  
+    return {"message": "Executed daily training updated successfully"}
 
-#     updated_users = [row for row in users if (int(row[0]) != user_id)]
+@daily_training_router.delete("/daily_training/delete/{training_id}", tags=["executed daily training"])
+def delete(training_id: int):
+    with open("data/executed_daily_training.csv", newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        trainings = list(reader)  
+    
+    header = trainings[0]
+    updated_trainings = [row for row in trainings[1:] if int(row[0]) != training_id]
+    updated_trainings.insert(0, header)
 
-#     with open("data/users.csv", mode='w', newline='', encoding='utf-8') as file:
-#         writer = csv.writer(file)
-#         writer.writerows(updated_users)
+    with open("data/executed_daily_training.csv", mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(updated_trainings)
 
-#     return {"message": "User deleted successfully"}
+    return {"message": "Executed daily training deleted successfully"}

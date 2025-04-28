@@ -11,4 +11,4 @@ class exercise_request_dto(BaseModel):
     url: str = Field(min_length=1, max_length=200)
     sets: int = Field(ge=1) 
     reps: int = Field(ge=1)
-    weight: float = Field(ge=0.0)  
+    weight: float = Field(ge=0.0) 
