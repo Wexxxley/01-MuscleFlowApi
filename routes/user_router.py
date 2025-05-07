@@ -9,29 +9,33 @@ from dtos.user_request_dto import user_request_dto
 from entities.user import user
 from utils.auxiliares import find_new_id_user, indent
 from log.user_logger import logger
+import hashlib
 
 user_router = APIRouter()
 
 @user_router.get("/users/get_by_id/{user_id}", tags=["users"], status_code=status.HTTP_200_OK)
 def get_by_id(user_id: int):
-    with open("data/users.csv", newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        for row in reader:
-            if int(row[0]) == user_id:
-                returned_user = user(
-                    int(row[0]), 
-                    row[1], 
-                    row[2], 
-                    float(row[3]), 
-                    float(row[4]), 
-                    date.fromisoformat(row[5])
-                )
-                logger.info(f"User with ID {user_id} found")
-                return returned_user
-        
-        logger.warning(f"User with ID {user_id} not found")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        
+    try:
+        with open("data/users.csv", newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if int(row[0]) == user_id:
+                    returned_user = user(
+                        int(row[0]), 
+                        row[1], 
+                        row[2], 
+                        float(row[3]), 
+                        float(row[4]), 
+                        date.fromisoformat(row[5])
+                    )
+                    logger.info(f"User with ID {user_id} found")
+                    return returned_user
+            
+            logger.warning(f"User with ID {user_id} not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    except Exception as e:
+        logger.error(f"An error occurred while fetching user with ID {user_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 @user_router.get("/users/get_all", tags=["users"], status_code=status.HTTP_200_OK)
 def ger_all():
@@ -111,20 +115,25 @@ def get_quantity():
 
 @user_router.get("/users/download_zip", tags=["users"])
 def download_zip():
-    try: 
+    try:
         with zipfile.ZipFile("data_zip/users.zip", 'w', zipfile.ZIP_DEFLATED) as zipf:
-            zipf.write("data/users.csv", os.path.basename("data/users.csv"))  
+            zipf.write("data/users.csv", os.path.basename("data/users.csv")) 
+            hash_sha256 = get_hash_csv()
             logger.info("users.zip created successfully")
-            return FileResponse("data_zip/users.zip", media_type='application/zip', filename='users.zip')
+            return FileResponse(
+                path="data_zip/users.zip",
+                media_type='application/zip',
+                filename='users.zip',
+                headers={"X-CSV-Hash": str(hash_sha256)}  # <-- header como dict de str:str
+            )
+
     except Exception as e:
         logger.error(f"An error occurred while creating the zip file: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating zip file: {e}")
 
 @user_router.get("/users/download_xml", tags=["users"])
 def download_xml():
-    Headers = [
-        "id", "name", "objective", "height", "weight", "registration_date"
-    ]
+    Headers = ["id", "name", "objective", "height", "weight", "registration_date"]
     
     try:
         with open("data/users.csv", newline='', encoding='utf-8') as csvfile:
@@ -141,10 +150,23 @@ def download_xml():
             logger.info("users.xml created successfully")
 
         return FileResponse("data_xml/users.xml", media_type='application/xml', filename='users.xml')
+    
     except Exception as e:
         logger.error(f"An error occurred while creating the XML file: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating XML file: {e}")
-    
+
+@user_router.get("/users/hash", tags=["users"])
+def get_hash_csv():
+    try: 
+        with open("data/users.csv", 'rb') as f:
+            file_data = f.read()
+            sha256_hash = hashlib.sha256(file_data).hexdigest()
+            logger.info("SHA256 hash of users.csv generated successfully")
+            return {"hash": str(sha256_hash)}
+    except Exception as e:
+        logger.error(f"An error occurred while generating the hash: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error generating hash: {e}")
+
 @user_router.post("/users/create", tags=["users"])
 def create(userDto: user_request_dto):
     new_id = find_new_id_user()
@@ -161,7 +183,7 @@ def create(userDto: user_request_dto):
         escritor.writerow([newUser.id, newUser.name, newUser.objective, newUser.height, newUser.weight, newUser.registration_date])
     
     logger.info(f"User {newUser.name} created successfully with ID {new_id}")
-    return {"message": "Exercise created successfully", "id": new_id}
+    return {"message": "User created successfully", "id": new_id}
 
 @user_router.put("/users/update/{user_id}", tags=["users"])
 def update(user_id: int, userDto: user_request_dto):
