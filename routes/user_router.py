@@ -5,61 +5,41 @@ import os
 import zipfile
 from fastapi import APIRouter, FastAPI, HTTPException, status
 from fastapi.responses import FileResponse
-from dtos.user_request_dto import user_request_dto
-from entities.user import user
-from utils.auxiliares import find_new_id_user, indent
-from log.user_logger import logger
+from dtos.user_request import user_request
+from models.user import User
+from log.logger_config import get_logger
+from db.database import engine
 import hashlib
+from sqlmodel import Session, func, select
 
-user_router = APIRouter()
+logger = get_logger("user_logger", "log/user.log")
 
-@user_router.get("/users/get_by_id/{user_id}", tags=["users"], status_code=status.HTTP_200_OK)
+user_router = APIRouter(tags=["users"])
+
+@user_router.get("/users/get_by_id/{user_id}")
 def get_by_id(user_id: int):
-    try:
-        with open("data/users.csv", newline='', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if int(row[0]) == user_id:
-                    returned_user = user(
-                        int(row[0]), 
-                        row[1], 
-                        row[2], 
-                        float(row[3]), 
-                        float(row[4]), 
-                        date.fromisoformat(row[5])
-                    )
-                    logger.info(f"User with ID {user_id} found")
-                    return returned_user
-            
+    with Session(engine) as session:
+        statement = select(User).where(User.id == user_id)
+        result = session.exec(statement).first()
+        if result is not None:
+            return result
+        else:
             logger.warning(f"User with ID {user_id} not found")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    except Exception as e:
-        logger.error(f"An error occurred while fetching user with ID {user_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@user_router.get("/users/get_all", tags=["users"], status_code=status.HTTP_200_OK)
+@user_router.get("/users/get_all")
 def ger_all():
-    try:
-        with open("data/users.csv", newline='', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            users = []
-            for row in reader:
-                user_instance = user(
-                    int(row[0]), 
-                    row[1], 
-                    row[2], 
-                    float(row[3]), 
-                    float(row[4]), 
-                    date.fromisoformat(row[5])
-                )
-                users.append(user_instance)
-        logger.info(f"Successfully fetched {len(users)} users")
-        return users
-    except Exception as e:
-        logger.error(f"An error occurred while fetching users: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching users")
+    with Session(engine) as session:
+        statement = select(User)
+        results = session.exec(statement).all()
+        if not results:
+            logger.warning("No users found in the database")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
+        
+    logger.info(f"Successfully fetched {len(results)} users")
+    return results
 
-@user_router.get("/users/filter", tags=["users"], status_code=status.HTTP_200_OK)
+@user_router.get("/users/filter")
 def filter_users(name: str = None, objective: str = None, date_registration: str = None):
     if date_registration:
         try:
@@ -70,168 +50,139 @@ def filter_users(name: str = None, objective: str = None, date_registration: str
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Formato de data inválido. Use YYYY-MM-DD"
             )
-
-    def matches(row) -> bool:
-        return (
-            (not name or row[1].lower() == name.lower()) and
-            (not objective or row[2].lower() == objective.lower()) and
-            (not date_registration or row[5].lower() == date_registration.lower())
-        )
      
-    with open("data/users.csv", newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        users = list(reader)
+    with Session(engine) as session:
+        conditions = []
+        if name:
+            conditions.append(func.lower(User.name) == name.lower())
+        if objective:
+            conditions.append(func.lower(User.objective) == objective.lower())
+        if date_registration:
+            conditions.append(User.registration_date == date.fromisoformat(date_registration))
 
-        returned_users = [
-            user(
-                int(row[0]), 
-                row[1], 
-                row[2], 
-                float(row[3]), 
-                float(row[4]), 
-                date.fromisoformat(row[5])
-            ) for row in users if matches(row)
-        ]
+        statement = select(User)
+        if conditions:
+            statement = statement.where(*conditions)
 
-    if not returned_users:
+        users = session.exec(statement).all()
+
+    if not users:
         logger.warning("No users found with the given criteria")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found with the given criteria")
     
-    logger.info(f"Successfully filtered {len(returned_users)} users")
-    return returned_users
+    logger.info(f"Successfully filtered {len(users)} users")
+    return users
 
-@user_router.get("/users/get_quantity", tags=["users"])
+@user_router.get("/users/get_quantity")
 def get_quantity():
-    try:
-        logger.info("Fetching the total number of users from 'data/users.csv'")
-        with open("data/users.csv", newline='', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            users = list(reader)
-        logger.info(f"Successfully fetched the total number of users: {len(users)}")
-        return {"quantity": len(users)}
-    except Exception as e:
-        logger.error(f"An error occurred while fetching the total number of users: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching user quantity")
-
-@user_router.get("/users/download_zip", tags=["users"])
-def download_zip():
-    try:
-        with zipfile.ZipFile("data_zip/users.zip", 'w', zipfile.ZIP_DEFLATED) as zipf:
-            zipf.write("data/users.csv", os.path.basename("data/users.csv")) 
-            hash_sha256 = get_hash_csv()
-            logger.info("users.zip created successfully")
-            return FileResponse(
-                path="data_zip/users.zip",
-                media_type='application/zip',
-                filename='users.zip',
-                headers={"X-CSV-Hash": str(hash_sha256)}  # <-- header como dict de str:str
-            )
-
-    except Exception as e:
-        logger.error(f"An error occurred while creating the zip file: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating zip file: {e}")
-
-@user_router.get("/users/download_xml", tags=["users"])
-def download_xml():
-    Headers = ["id", "name", "objective", "height", "weight", "registration_date"]
+    with Session(engine) as session:
+        quantity = session.exec(select(func.count(User.id))).one()
+    logger.info(f"Successfully fetched the total number of users: {quantity}")
+    return {"quantity": quantity}
     
-    try:
-        with open("data/users.csv", newline='', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile, fieldnames=Headers)
-            root = ET.Element("users")
-            for row in reader:
-                item = ET.SubElement(root, "user")
-                for key, value in row.items():
-                    field = ET.SubElement(item, key)
-                    field.text = value
-            indent(root)  # Aplica indentação personalizada
-            tree = ET.ElementTree(root)
-            tree.write("data_xml/users.xml", encoding='utf-8', xml_declaration=True)
-            logger.info("users.xml created successfully")
-
-        return FileResponse("data_xml/users.xml", media_type='application/xml', filename='users.xml')
-    
-    except Exception as e:
-        logger.error(f"An error occurred while creating the XML file: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating XML file: {e}")
-
-@user_router.get("/users/hash", tags=["users"])
-def get_hash_csv():
-    try: 
-        with open("data/users.csv", 'rb') as f:
-            file_data = f.read()
-            sha256_hash = hashlib.sha256(file_data).hexdigest()
-            logger.info("SHA256 hash of users.csv generated successfully")
-            return {"hash": str(sha256_hash)}
-    except Exception as e:
-        logger.error(f"An error occurred while generating the hash: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error generating hash: {e}")
-
-@user_router.post("/users/create", tags=["users"])
-def create(userDto: user_request_dto):
-    new_id = find_new_id_user()
-    newUser = user(
-        id = new_id, 
+@user_router.post("/users/create")
+def create(userDto: user_request):
+    newUser = User( 
         name = userDto.name, 
         objective = userDto.objective, 
         height = userDto.height, 
         weight = userDto.weight, 
         registration_date = date.today()
     ) 
-    with open('data/users.csv', mode='a', newline='', encoding='utf-8') as file:
-        escritor = csv.writer(file)
-        escritor.writerow([newUser.id, newUser.name, newUser.objective, newUser.height, newUser.weight, newUser.registration_date])
+    with Session(engine) as session:
+        session.add(newUser)
+        session.commit()
+        session.refresh(newUser)
     
-    logger.info(f"User {newUser.name} created successfully with ID {new_id}")
-    return {"message": "User created successfully", "id": new_id}
+    logger.info(f"User {newUser.name} created successfully with ID {newUser.id}")
+    return {"message": "User created successfully", "id": newUser.id}
 
-@user_router.put("/users/update/{user_id}", tags=["users"])
-def update(user_id: int, userDto: user_request_dto):
-    with open("data/users.csv", newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        updated_users = list(reader)  
+@user_router.put("/users/update/{user_id}")
+def update(user_id: int, userDto: user_request):
+    with Session(engine) as session:
+        statament = select(User).where(User.id == user_id)
+        user = session.exec(statament).first()
 
-    user_found = False
-    for i, row in enumerate(updated_users):
-        if int(row[0]) == user_id:
-            updated_users[i] = [user_id, userDto.name, userDto.objective, userDto.height, userDto.weight, updated_users[i][5]]
-            user_found = True
-            break
+        if user is None:
+            logger.warning(f"User with ID {user_id} not found for update")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+        user.name = userDto.name
+        user.objective = userDto.objective
+        user.height = userDto.height
+        user.weight = userDto.weight
 
-    if user_found == False:
-        logger.warning(f"User with ID {user_id} not found for update")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    with open("data/users.csv", mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerows(updated_users)
+        session.commit()
+        session.refresh(user)
 
     logger.info(f"User with ID {user_id} updated successfully")
     return {"message": "User updated successfully"}
 
 @user_router.delete("/users/delete/{user_id}", tags=["users"])
 def delete(user_id: int):
-    with open("data/users.csv", newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        users = list(reader)  
+    with Session(engine) as session:
+        statement = select(User).where(User.id == user_id)
+        user = session.exec(statement).first()
 
-    user_found = False
-    updated_users = []
+        if user is None:
+            logger.warning(f"User with ID {user_id} not found for deletion")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    for row in users:
-        if int(row[0]) == int(user_id):
-            user_found = True
-            continue 
-
-        updated_users.append(row)
-    
-    if user_found == False:
-        logger.warning(f"User with ID {user_id} not found for deletion")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    with open("data/users.csv", mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerows(updated_users)
+        session.delete(user)
+        session.commit()
 
     logger.info(f"User with ID {user_id} deleted successfully")
     return {"message": "User deleted successfully"}
+
+#==========================================================================================================
+
+# @user_router.get("/users/download_zip")
+# def download_zip():
+#     with Session(engine) as session:
+#         zipf.write("data/users.csv", os.path.basename("data/users.csv")) 
+#         hash_sha256 = get_hash_csv()
+#         logger.info("users.zip created successfully")
+#         return FileResponse(
+#             path="data_zip/users.zip",
+#             media_type='application/zip',
+#             filename='users.zip',
+#             headers={"X-CSV-Hash": str(hash_sha256)}  # <-- header como dict de str:str
+#         )
+
+
+# @user_router.get("/users/download_xml", tags=["users"])
+# def download_xml():
+#     Headers = ["id", "name", "objective", "height", "weight", "registration_date"]
+    
+#     try:
+#         with open("data/users.csv", newline='', encoding='utf-8') as csvfile:
+#             reader = csv.DictReader(csvfile, fieldnames=Headers)
+#             root = ET.Element("users")
+#             for row in reader:
+#                 item = ET.SubElement(root, "user")
+#                 for key, value in row.items():
+#                     field = ET.SubElement(item, key)
+#                     field.text = value
+#             indent(root)  # Aplica indentação personalizada
+#             tree = ET.ElementTree(root)
+#             tree.write("data_xml/users.xml", encoding='utf-8', xml_declaration=True)
+#             logger.info("users.xml created successfully")
+
+#         return FileResponse("data_xml/users.xml", media_type='application/xml', filename='users.xml')
+    
+#     except Exception as e:
+#         logger.error(f"An error occurred while creating the XML file: {e}")
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating XML file: {e}")
+
+
+# @user_router.get("/users/hash", tags=["users"])
+# def get_hash_csv():
+#     try: 
+#         with open("data/users.csv", 'rb') as f:
+#             file_data = f.read()
+#             sha256_hash = hashlib.sha256(file_data).hexdigest()
+#             logger.info("SHA256 hash of users.csv generated successfully")
+#             return {"hash": str(sha256_hash)}
+#     except Exception as e:
+#         logger.error(f"An error occurred while generating the hash: {e}")
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error generating hash: {e}")
