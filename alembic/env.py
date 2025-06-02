@@ -1,3 +1,4 @@
+# env.py
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -5,12 +6,8 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from db.database import target_metadata
-
-from models.executed_daily_training import ExecutedDailyTraining
-from models.user import User
-from models.exercise import Exercise 
-from models.executed_exercise import ExecutedExercise
+# Importe o target_metadata do seu arquivo de banco de dados
+from db.database import target_metadata # <--- Apenas esta importação é necessária aqui
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -21,11 +18,12 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your mod el's MetaData object here
+# add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = target_metadata
+# target_metadata já está definido no db/database.py e traz todos os modelos importados lá
+# Então, a linha abaixo permanece como está ou, de preferência, pode ser apenas:
+# target_metadata = target_metadata # Se você quiser manter a atribuição explícita
+# O importante é que `target_metadata` seja o objeto `SQLModel.metadata` populado.
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -48,7 +46,7 @@ def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
-        target_metadata=target_metadata,
+        target_metadata=target_metadata, # Alembic usará este metadata completo
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -72,7 +70,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata # Alembic usará este metadata completo
         )
 
         with context.begin_transaction():

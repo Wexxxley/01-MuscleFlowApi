@@ -1,21 +1,23 @@
 from datetime import date, datetime
-from fastapi import APIRouter, FastAPI, HTTPException, Path, Response
+import math
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Path, Response
 from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
 from models.executed_daily_training import ExecutedDailyTraining
 from models.executed_exercise import ExecutedExercise
 from dtos.executed_daily_training_request import executed_daily_training_request
-from dtos.executed_exercise_response import executed_exercise_response
+from dtos.executed_exercise_dto import executed_exercise_dto
 from dtos.executed_daily_training_response import executed_daily_training_response 
 from models.executed_daily_training import ExecutedDailyTraining
 from log.logger_config import get_logger
 from db.database import engine
 from models.exercise import Exercise
 from models.user import User
+from utils.pagination import PaginatedResponse, PaginationParams
 
 logger = get_logger("daily_training_logger", "log/daily_training.log")
 
-daily_training_router = APIRouter(tags=["executed daily training"])
+daily_training_router = APIRouter(tags=["Executed daily training"])
 
 @daily_training_router.get("/daily_training/get_by_id/{user_id}")
 def get_by_id(training_id: int):
@@ -38,8 +40,7 @@ def get_by_id(training_id: int):
             total_duration=result.total_duration,
             notes = result.notes,
             exercises=[
-                executed_exercise_response(
-                    id=ex.id,
+                executed_exercise_dto(
                     id_exercise=ex.id_exercise,
                     sets_done=ex.sets_done,
                     reps_done=ex.reps_done,
@@ -53,9 +54,11 @@ def get_by_id(training_id: int):
 
 
 @daily_training_router.get("/daily_training/get_all")
-def get_all():
+def get_all(pagination: PaginationParams = Depends()):
     with Session(engine) as session:
-        statement = select(ExecutedDailyTraining)
+
+        offset = (pagination.page-1) * pagination.per_page 
+        statement = select(ExecutedDailyTraining).offset(offset).limit(pagination.per_page)
         result = session.exec(statement).all()
         
         if not result:
@@ -77,8 +80,7 @@ def get_all():
                 total_duration=t.total_duration,
                 notes = t.notes,
                 exercises=[
-                    executed_exercise_response(
-                        id=ex.id,
+                    executed_exercise_dto(
                         id_exercise=ex.id_exercise,
                         sets_done=ex.sets_done,
                         reps_done=ex.reps_done,
@@ -88,17 +90,26 @@ def get_all():
             )
             trainings.append(training)
 
-        logger.info(f"Successfully fetched {len(trainings)} executed daily trainings")
-        return trainings
+        total = session.exec(select(func.count(ExecutedDailyTraining.id))).one()
 
-@daily_training_router.get("/edaily_trainingxercise/filter", tags=["executed daily training"])
-def filter_daily_training(user_id: int = None, training_date: str = None):
+        logger.info(f"Successfully fetched {len(trainings)} executed daily trainings")
+        return PaginatedResponse(
+            items=trainings,
+            total=total,
+            page=pagination.page,
+            per_page=pagination.per_page,
+            total_pages= math.ceil((total) / pagination.per_page)
+        )
+
+@daily_training_router.get("/edaily_trainingxercise/filter")
+def filter_daily_training(user_id: int = None, training_date: str = None, pagination: PaginationParams = Depends()):
 
    with Session(engine) as session:  
 
         #validando a data        
         try:
-            datetime.strptime(training_date, '%Y-%m-%d').date()
+            if training_date:
+                datetime.strptime(training_date, '%Y-%m-%d').date()
         except ValueError:
             logger.error(f"Invalid date format: {training_date}")
             raise HTTPException(
@@ -106,11 +117,24 @@ def filter_daily_training(user_id: int = None, training_date: str = None):
                 detail="Formato de data inválido. Use YYYY-MM-DD"
             )  
 
-        #trazendo os dados do database
-        statement = select(ExecutedDailyTraining).where(
-            (user_id == ExecutedDailyTraining.user_id) if user_id else True,
-            (training_date == ExecutedDailyTraining.training_date) if training_date else True
-        )
+        conditions = []
+        if user_id:
+            conditions.append(user_id == ExecutedDailyTraining.user_id)
+        if training_date:
+            conditions.append(training_date == ExecutedDailyTraining.training_date)
+       
+        offset = (pagination.page-1) * pagination.per_page 
+        statement = select(ExecutedDailyTraining).offset(offset).limit(pagination.per_page)
+        
+         # Pegando o total de registros com tais condições
+        count_stmt = select(func.count(ExecutedDailyTraining.id))
+        if conditions:
+            count_stmt = count_stmt.where(*conditions)
+        total = session.exec(count_stmt).one()
+
+        # Aplicando condições de filtro e executando
+        if conditions:
+            statement = statement.where(*conditions)
         result = session.exec(statement).all()
         
         if not result:
@@ -132,8 +156,7 @@ def filter_daily_training(user_id: int = None, training_date: str = None):
                 total_duration=t.total_duration,
                 notes = t.notes,
                 exercises=[
-                    executed_exercise_response(
-                        id=ex.id,
+                    executed_exercise_dto(
                         id_exercise=ex.id_exercise,
                         sets_done=ex.sets_done,
                         reps_done=ex.reps_done,
@@ -144,7 +167,13 @@ def filter_daily_training(user_id: int = None, training_date: str = None):
             trainings.append(training)
 
         logger.info(f"Successfully fetched {len(trainings)} executed daily trainings")
-        return trainings
+        return PaginatedResponse(
+            items=result,
+            total=total,
+            page=pagination.page,
+            per_page=pagination.per_page,
+            total_pages= math.ceil((total) / pagination.per_page)
+        )
 
 @daily_training_router.get("/daily_training/get_quantity")
 def get_quantity():
@@ -153,10 +182,9 @@ def get_quantity():
     logger.info(f"Successfully fetched the total number of Executed Daily Trainings: {quantity}")
     return {"quantity": quantity}
 
-@daily_training_router.post("/daily_training/create", tags=["executed daily training"])
+@daily_training_router.post("/daily_training/create")
 def create(executed_training: executed_daily_training_request):
   
-    # Verificando se o user_id existe (opcional)
     with Session(engine) as session:
         user = session.get(User, executed_training.user_id)
         if not user:
@@ -172,13 +200,14 @@ def create(executed_training: executed_daily_training_request):
                 status_code=400,
                 detail=f"Exercises not found with IDs: {list(not_found)}"
             )
+        
+   
 
     dailyTraining = ExecutedDailyTraining(
         user_id=executed_training.user_id,
         training_date=executed_training.training_date,
         total_duration=executed_training.total_duration,
-        notes = executed_training.notes,
-        exercises = [ex for ex in executed_training.exercises]
+        notes = executed_training.notes,   
     )
 
     with Session(engine) as session:
@@ -187,8 +216,16 @@ def create(executed_training: executed_daily_training_request):
         session.commit()  # Commit para salvar o treino executado
         session.refresh(dailyTraining)  # Necessário para pegar o ID gerado
 
+        exercises = [ExecutedExercise(
+            daily_training_id=dailyTraining.id,
+            id_exercise=ex.id_exercise,
+            sets_done=ex.sets_done,
+            reps_done=ex.reps_done,
+            weight_used=ex.weight_used
+        ) for ex in executed_training.exercises]
+
         # Adicionanado executed exercises ao db 
-        for ex in executed_training.exercises:
+        for ex in exercises:
             session.add(ex)
             session.commit()  # Commit para garantir que o ID seja gerado antes de associar ao treino
             session.refresh(ex)  # Necessário para pegar o ID gerado
@@ -239,7 +276,7 @@ def update(training_id: int, executed_training: executed_daily_training_request)
         logger.info(f"Executed daily training with ID {training_id} updated successfully")
         return {"message": "Executed daily training updated successfully"}
     
-@daily_training_router.delete("/daily_training/delete/{training_id}", tags=["executed daily training"])
+@daily_training_router.delete("/daily_training/delete/{training_id}")
 def delete(training_id: int):
     with Session(engine) as session:
         statement = select(ExecutedDailyTraining).where(ExecutedDailyTraining.id == training_id)
