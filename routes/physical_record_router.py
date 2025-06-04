@@ -1,7 +1,7 @@
 import math
 from datetime import datetime
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
-from dtos.physical_record_request import PhysicalRecordRequest
+from dtos.physical_record.physical_record_request import PhysicalRecordRequest
 from models.physical_record import PhysicalRecord
 from models.user import User
 from log.logger_config import get_logger

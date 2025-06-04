@@ -1,9 +1,11 @@
 import math
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from sqlmodel import Session, func, select
+from dtos.exercise.top_executed_exercise_response import TopExecutedExerciseResponse
 from log.logger_config import get_logger
+from models.executed_exercise import ExecutedExercise
 from models.exercise import Exercise
-from dtos.exercise_request import exercise_request
+from dtos.exercise.exercise_request import exercise_request
 from utils.level_exercise import level_exercise
 from db.database import engine
 from utils.pagination import PaginatedResponse, PaginationParams
@@ -157,3 +159,27 @@ def delete_exercise(exercise_id: int):
 
     logger.info(f"Exercise with ID {exercise_id} deleted successfully")
     return {"message": "Exercise deleted successfully"}
+
+@exercise_router.get("/exercise/get_top_executed_exercises")
+def get_top_executed_exercises(limit: int = 5):
+    with Session(engine) as session:
+        statement = (
+            select(Exercise, func.count(ExecutedExercise.id).label("execution_count"))
+            .join(ExecutedExercise, Exercise.id == ExecutedExercise.id_exercise) 
+            .group_by(Exercise.id, Exercise.name) # Agrupa pelo ID e nome do exercício para contar
+            .order_by(func.count(ExecutedExercise.id).desc()) # Ordena pela contagem em ordem decrescente
+            .limit(limit) # Limita ao número de top exercícios desejado
+        )
+
+        results: list[tuple[Exercise, int]] = session.exec(statement).all()
+        if not results:
+            logger.warning(f"Not found executed exercises")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found executed exercises")
+
+
+        response_list: list[TopExecutedExerciseResponse] = []
+        
+        for ex, count in results:
+            response_list.append(TopExecutedExerciseResponse(exercise=ex, execution_count=count))
+
+        return response_list

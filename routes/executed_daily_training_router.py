@@ -5,9 +5,9 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
 from models.executed_daily_training import ExecutedDailyTraining
 from models.executed_exercise import ExecutedExercise
-from dtos.executed_daily_training_request import executed_daily_training_request
-from dtos.executed_exercise_dto import executed_exercise_dto
-from dtos.executed_daily_training_response import executed_daily_training_response 
+from dtos.executed_daily_training.executed_daily_training_request import executed_daily_training_request
+from dtos.executed_daily_training.executed_exercise_dto import executed_exercise_dto
+from dtos.executed_daily_training.executed_daily_training_response import executed_daily_training_response 
 from models.executed_daily_training import ExecutedDailyTraining
 from log.logger_config import get_logger
 from db.database import engine

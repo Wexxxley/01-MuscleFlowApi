@@ -1,6 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel
-from dtos.training_sheet_day_responde import TrainingSheetDayResponse
+from dtos.training_sheet.training_sheet_day_responde import TrainingSheetDayResponse
 from utils.level_exercise import level_exercise
 
 class TrainingSheetWeekResponse(BaseModel):

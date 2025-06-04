@@ -1,7 +1,10 @@
 import math
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
-from dtos.user_request import user_request
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status
+from dtos.user.user_request import user_request
+from dtos.user.user_with_matching_pr_response import UserWithMatchingPhysicalRecord
+from models.physical_record import PhysicalRecord
 from models.user import User
 from log.logger_config import get_logger
 from db.database import engine
@@ -161,3 +164,66 @@ def delete(user_id: int):
 
     logger.info(f"User with ID {user_id} deleted successfully")
     return {"message": "User deleted successfully"}
+
+@user_router.get("/user/get_by_pr_criteria")
+def get_by_pr_criteria(
+    min_weight: Optional[float] = None,
+    max_weight: Optional[float] = None,
+    min_body_fat_percentage: Optional[float] = None, 
+    max_body_fat_percentage: Optional[float] = None, 
+    min_height: Optional[float] = None,             
+    max_height: Optional[float] = None,            
+    min_muscle_mass_percentage: Optional[float] = None, 
+    max_muscle_mass_percentage: Optional[float] = None, 
+    start_recorded_at: Optional[date] = None,       
+    end_recorded_at: Optional[date] = None          
+):
+    with Session(engine) as session:
+        statement = (
+            select(User, PhysicalRecord)
+            .join(PhysicalRecord)
+        )
+
+        # Filtros de peso
+        if min_weight is not None:
+            statement = statement.where(PhysicalRecord.weight >= min_weight)
+        if max_weight is not None:
+            statement = statement.where(PhysicalRecord.weight <= max_weight)
+
+        # Filtros para body_fat_percentage
+        if min_body_fat_percentage is not None:
+            statement = statement.where(PhysicalRecord.body_fat_percentage >= min_body_fat_percentage)
+        if max_body_fat_percentage is not None:
+            statement = statement.where(PhysicalRecord.body_fat_percentage <= max_body_fat_percentage)
+
+        # Filtros para height
+        if min_height is not None:
+            statement = statement.where(PhysicalRecord.height >= min_height)
+        if max_height is not None:
+            statement = statement.where(PhysicalRecord.height <= max_height)
+
+        # Filtros para muscle_mass_percentage
+        if min_muscle_mass_percentage is not None:
+            statement = statement.where(PhysicalRecord.muscle_mass_percentage >= min_muscle_mass_percentage)
+        if max_muscle_mass_percentage is not None:
+            statement = statement.where(PhysicalRecord.muscle_mass_percentage <= max_muscle_mass_percentage)
+
+        # Filtros para intervalo de datas
+        if start_recorded_at is not None:
+            statement = statement.where(PhysicalRecord.recorded_at >= start_recorded_at)
+        if end_recorded_at is not None:
+            statement = statement.where(PhysicalRecord.recorded_at <= end_recorded_at)
+
+        #Executa a consulta
+        results: list[tuple[User, PhysicalRecord]] = session.exec(statement).all()
+
+        if not results:
+            logger.warning(f"Not found user with this criteria")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Users not found with this criteria")
+
+        # Retorna o user + pr
+        response_list: list[UserWithMatchingPhysicalRecord] = []
+        for user_obj, pr_obj in results:
+            response_list.append(UserWithMatchingPhysicalRecord(user=user_obj, physical_record=pr_obj))
+
+        return response_list

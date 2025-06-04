@@ -1,8 +1,9 @@
 import math
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
-from dtos.training_sheet_day_responde import TrainingSheetDayResponse
-from dtos.training_sheet_week_request import TrainingSheetWeekRequest
-from dtos.training_sheet_week_response import TrainingSheetWeekResponse
+from dtos.training_sheet.training_sheet_day_responde import TrainingSheetDayResponse
+from dtos.training_sheet.training_sheet_user_link_request import TrainingSheetUserLinkRequest
+from dtos.training_sheet.training_sheet_week_request import TrainingSheetWeekRequest
+from dtos.training_sheet.training_sheet_week_response import TrainingSheetWeekResponse
 from models.exercise import Exercise
 from models.models_links import TrainingSheetDayExerciseLink
 from models.training_sheet_day import TrainingSheetDay
@@ -10,8 +11,10 @@ from log.logger_config import get_logger
 from db.database import engine
 from sqlmodel import Session, and_, func, select
 from models.training_sheet_week import TrainingSheetWeek
+from models.user import User
 from utils.level_exercise import level_exercise
 from utils.pagination import PaginationParams, PaginatedResponse
+from models.models_links import TrainingSheetWeekUserLink
 
 logger = get_logger("training_sheet_logger", "log/training_sheet.log")
 
@@ -261,6 +264,49 @@ def create(training_sheet_week_request: TrainingSheetWeekRequest):
 
         logger.info(f"Training sheet created: {trainingSheetWeek.id} - {trainingSheetWeek.name}")
         return {"message": "Training sheet created successfully", "id": trainingSheetWeek.id}
+    
+@training_sheet_router.post("/training_sheet/associate_user")
+def associate_user(user_id: int, training_sheet_week_id: int):
+    with Session(engine) as session:
+    
+        # verificando se user existe
+        user = session.get(User, user_id)
+        if not user:
+            logger.warning("User with id {request.user_id} not found in method associate_user."),
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"User with id {user_id} not found.")
+
+        # verificando se training sheet existe
+        training_sheet_week = session.get(TrainingSheetWeek, training_sheet_week_id)
+        if not training_sheet_week:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"Traning sheet week with id {training_sheet_week_id} not found.")
+
+        # Verificar se a associação já existe
+        existing_link = session.exec(
+            select(TrainingSheetWeekUserLink)
+            .where(TrainingSheetWeekUserLink.user_id == user_id)
+            .where(TrainingSheetWeekUserLink.training_sheet_week_id == training_sheet_week_id)
+        ).first()
+
+        if existing_link:
+            logger.warning(f"Association between user_id {user_id} and training_sheet_week_id {training_sheet_week_id} already exists.")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Association between user_id {user_id} and training_sheet_week_id {training_sheet_week_id} already exists."
+            )
+
+        # Criar a nova associação
+        new_link = TrainingSheetWeekUserLink(
+            user_id=user_id,
+            training_sheet_week_id=training_sheet_week_id
+        )
+
+        session.add(new_link)
+        session.commit()
+        session.refresh(new_link) 
+
+        return {"message": "Association successfully created!", "link_id": {"user_id": new_link.user_id, "training_sheet_week_id": new_link.training_sheet_week_id}}
+
+
 
 @training_sheet_router.put("/training_sheet/update/{training_sheet_id}", status_code=status.HTTP_200_OK) # Adicione o status_code
 def update(training_sheet_id: int, training_sheet_week_request: TrainingSheetWeekRequest,):
