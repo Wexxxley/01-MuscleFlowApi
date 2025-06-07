@@ -2,6 +2,7 @@ import math
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from dtos.training_sheet.training_sheet_day_responde import TrainingSheetDayResponse
 from dtos.training_sheet.training_sheet_user_link_request import TrainingSheetUserLinkRequest
+from dtos.training_sheet.training_sheet_week_more_used_response import TrainingSheetWeekMoreUsedResponse
 from dtos.training_sheet.training_sheet_week_request import TrainingSheetWeekRequest
 from dtos.training_sheet.training_sheet_week_response import TrainingSheetWeekResponse
 from models.exercise import Exercise
@@ -376,3 +377,57 @@ def delete(training_sheet_id: int):
 
         logger.info(f"Training sheet with ID {training_sheet_id} deleted successfully")
         return {"message": "Training sheet deleted successfully"}
+    
+@training_sheet_router.get("/training_sheet/get_more_used_training_sheets/")
+def get_more_used(limit: int = 5):
+    with Session(engine) as session:
+        statement = (
+            select(TrainingSheetWeek, func.count(TrainingSheetWeekUserLink.user_id).label("count"))
+             .join(TrainingSheetWeekUserLink, TrainingSheetWeekUserLink.training_sheet_week_id == TrainingSheetWeek.id) 
+             .group_by(TrainingSheetWeek.id)
+             .order_by(func.count(TrainingSheetWeekUserLink.user_id).desc())
+             .limit(limit) 
+        )
+
+        training_sheet_weeks: list[tuple[TrainingSheetWeek, int]] = session.exec(statement).all()
+
+        if not training_sheet_weeks:
+            logger.warning("Not found used training sheets")
+            raise HTTPException(status_code=404, detail="Not found used training sheets")
+
+        training_sheet_weeks_response = []
+        for training_sheet_week, count in training_sheet_weeks:
+            # Obtendo os dias de treino associados
+            days_statement = select(TrainingSheetDay).where(TrainingSheetDay.training_sheet_week_id == training_sheet_week.id)
+            training_sheet_days = session.exec(days_statement).all()
+
+            training_sheet_days_response = []
+
+            for day in training_sheet_days:
+                # Obtendo os exercícios associados a cada dia
+                links_statement = select(TrainingSheetDayExerciseLink.exercise_id).where(
+                    TrainingSheetDayExerciseLink.training_sheet_day_id == day.id).order_by(TrainingSheetDayExerciseLink.order)
+                
+                exercise_ids = session.exec(links_statement).all()
+
+                # Criando a resposta para o dia de treino
+                training_sheet_day_response = TrainingSheetDayResponse(
+                    focus_area=day.focus_area,
+                    day_of_week=day.day_of_week,
+                    exercises_ids=exercise_ids
+                )
+                training_sheet_days_response.append(training_sheet_day_response)
+
+            training_sheet_week_response = TrainingSheetWeekResponse(
+                id=training_sheet_week.id,
+                name=training_sheet_week.name,
+                description=training_sheet_week.description,
+                level=training_sheet_week.level,
+                training_sheet_days=training_sheet_days_response
+            )
+
+            training_sheet_weeks_response.append(TrainingSheetWeekMoreUsedResponse(training_sheet_week_response=training_sheet_week_response, count=count))
+
+        logger.info(f"More used training sheets returned")
+        return training_sheet_weeks_response
+

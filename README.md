@@ -53,7 +53,6 @@ MuscleFlowAPI/
 ├── 📂 routers/                # Endpoints da API (FastAPI) para diferentes entidades.
 ├── 📂 db/                     # Configuração do banco de dados e gerenciamento de sessão.
 ├── 📄 main.py                 # Ponto de entrada da aplicação FastAPI.
-└── 📄 requirements.txt        # Dependências do projeto Python.
 ```
 
 ---
